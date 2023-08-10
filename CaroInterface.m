@@ -202,7 +202,7 @@ classdef CaroInterface < handle
                 indices {CaroInterface.mustBeValidIndex(indices,obj)} = ':'
                 params.minActivity (1,1) double = obj.conf.minActivity;
             end
-            d = obj.walkedDistance(indices);
+            d = obj.distanceWalked(indices);
             l = d > params.minActivity;
         end
 

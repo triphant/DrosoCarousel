@@ -1,0 +1,13 @@
+{
+  "indexMode": "video",
+  "imageResX": 768,
+  "imageResY": 768,
+  "occupancyScale": 0.25,
+  "ringWidth": 15,
+  "borderWidth": 40,
+  "borderBuffer": 7,
+  "minActivity": 1.0,
+  "maxMoveDist": 100.0,
+  "minVisitLength": 5,    
+  "roiGapMax": 2
+}

@@ -4,7 +4,7 @@ classdef DoubleCaroDataHandleList < CaroDataHandleList
 %
 %   Author: Tilman Triphan, tilman.triphan@uni-leipzig.de
 %   License: GNU General Public License v3.0
-%   Copyright (C) 2017-2023  Tilman Triphan
+%   Copyright (C) 2017-2025  Tilman Triphan
 %
 %   This program is free software: you can redistribute it and/or modify
 %   it under the terms of the GNU General Public License as published by

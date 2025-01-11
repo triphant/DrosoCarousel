@@ -13,6 +13,8 @@ Videos are tracked with [DeepLabCut](https://github.com/DeepLabCut/DeepLabCut) a
 
 `CaroLoader.m` is used to load experiments that have been tracked with [DeepLabCut](https://github.com/DeepLabCut/DeepLabCut)
 
+`CaroDataShuffler` can be used to randomly shuffle videos between experiments with the option to keep the temporal position (i.e. first videos will stay first)
+
 You can select two indexModes, `video` and `frame`. With the `video` setting, `expt.plotWalkingTrace(1:3)` will plot the first three videos (e.g. 3*9000 frames),
 while with the `frame` setting, `expt.plotWalkingTrace(2000:3000)` will plot only the frames 2000 to 3000.
 

@@ -72,6 +72,196 @@ classdef CaroInterface < handle
             v = obj.conf.roilist(obj.conf.roicode);
         end
 
+        function setRoiDefaultValues(obj)
+            % setRoiDefaultValues(obj,expType) sets default values for ROIs
+            arguments
+                obj (1,1)
+            end
+            obj.ctrl.rois.arena.color = [0.8 0.8 0.8];
+            obj.ctrl.rois.arena.comment = 'whole arena';
+            obj.ctrl.rois.arena.prio = -100;
+            obj.ctrl.rois.arena.sort = 0;
+            obj.ctrl.rois.arena.type = 'circ';
+            obj.ctrl.rois.arena.use = false;
+
+            obj.ctrl.rois.empty.color = [0.8 0.8 0.8];
+            obj.ctrl.rois.empty.comment = 'arena excluding all defined rois';
+            obj.ctrl.rois.empty.inc = {};
+            obj.ctrl.rois.empty.prio = -100;
+            obj.ctrl.rois.empty.rule = 'not';
+            obj.ctrl.rois.empty.sort = 0;
+            obj.ctrl.rois.empty.type = 'comb';
+            obj.ctrl.rois.empty.use = false;
+
+            obj.ctrl.rois.nan.color = [0 0 0];
+            obj.ctrl.rois.nan.comment = 'invalid values';
+            obj.ctrl.rois.nan.func = 'isNaN';
+            obj.ctrl.rois.nan.prio = 0;
+            obj.ctrl.rois.nan.sort = 5;
+            obj.ctrl.rois.nan.type = 'func';
+            obj.ctrl.rois.nan.use = true;
+
+            obj.ctrl.rois.food.color = [0 0.7 0];
+            obj.ctrl.rois.food.comment = 'food patch';
+            obj.ctrl.rois.food.prio = 0;
+            obj.ctrl.rois.food.sort = 2;
+            obj.ctrl.rois.food.type = 'circ';
+            obj.ctrl.rois.food.use = true;
+
+            obj.ctrl.rois.border.color = [0 0.5 0.5];
+            obj.ctrl.rois.border.comment = 'border around arena';
+            obj.ctrl.rois.border.prio = -10;
+            obj.ctrl.rois.border.sort = 4;
+            obj.ctrl.rois.border.type = 'circ';
+            obj.ctrl.rois.border.use = true;
+
+            obj.ctrl.rois.nodata.color = [1 1 1];
+            obj.ctrl.rois.nodata.comment = 'no data e.g. outside of experiment time window';
+            obj.ctrl.rois.nodata.type = 'spec';
+            obj.ctrl.rois.nodata.use = false;
+
+            switch cell2mat(obj.getInfo('type'))
+                case 'SingleCaro'
+                    obj.ctrl.rois.empty.inc = {
+                        'arena','disk','food','ring','border'};
+
+                    obj.ctrl.rois.disk.color = [1 0 0];
+                    obj.ctrl.rois.disk.comment = 'carousel disk';
+                    obj.ctrl.rois.disk.prio = 10;
+                    obj.ctrl.rois.disk.sort = 1;
+                    obj.ctrl.rois.disk.type = 'circ';
+                    obj.ctrl.rois.disk.use = true;
+
+                    obj.ctrl.rois.ring.color = [0.5 0.5 0];
+                    obj.ctrl.rois.ring.comment = 'ring around carousel disk';
+                    obj.ctrl.rois.ring.prio = 0;
+                    obj.ctrl.rois.ring.sort = 3;
+                    obj.ctrl.rois.ring.type = 'circ';
+                    obj.ctrl.rois.ring.use = true;
+
+                case 'DoubleCaro'
+                    obj.ctrl.rois.empty.inc = {
+                        'arena','disk1','disk2','food','ring1','ring2','border'};
+
+                    obj.ctrl.rois.disk1.color = [0.7 0 0];
+                    obj.ctrl.rois.disk1.comment = 'left carousel disk';
+                    obj.ctrl.rois.disk1.prio = 10;
+                    obj.ctrl.rois.disk1.show = true;
+                    obj.ctrl.rois.disk1.sort = 1;
+                    obj.ctrl.rois.disk1.type = 'circ';
+                    obj.ctrl.rois.disk1.use = true;
+
+                    obj.ctrl.rois.disk2.color = [1 0 0];
+                    obj.ctrl.rois.disk2.comment = 'right carousel disk';
+                    obj.ctrl.rois.disk2.prio = 10;
+                    obj.ctrl.rois.disk2.show = true;
+                    obj.ctrl.rois.disk2.sort = 1;
+                    obj.ctrl.rois.disk2.type = 'circ';
+                    obj.ctrl.rois.disk2.use = true;
+
+                    obj.ctrl.rois.ring1.color = [0.5 0.5 0];
+                    obj.ctrl.rois.ring1.comment = 'ring around left carousel disk';
+                    obj.ctrl.rois.ring1.prio = 0;
+                    obj.ctrl.rois.ring1.show = true;
+                    obj.ctrl.rois.ring1.sort = 3;
+                    obj.ctrl.rois.ring1.type = 'circ';
+                    obj.ctrl.rois.ring1.use = true;
+
+                    obj.ctrl.rois.ring2.color = [0.8 0.8 0];
+                    obj.ctrl.rois.ring2.comment = 'ring around right carousel disk';
+                    obj.ctrl.rois.ring2.prio = 0;
+                    obj.ctrl.rois.ring2.show = true;
+                    obj.ctrl.rois.ring2.sort = 3;
+                    obj.ctrl.rois.ring2.type = 'circ';
+                    obj.ctrl.rois.ring2.use = true;
+
+                    obj.ctrl.rois.turn1.color = [0 0 0];
+                    obj.ctrl.rois.turn1.comment = 'left carousel is turning';
+                    obj.ctrl.rois.turn1.func = 'isDisk1Moving';
+                    obj.ctrl.rois.turn1.prio = 0;
+                    obj.ctrl.rois.turn1.show = true;
+                    obj.ctrl.rois.turn1.sort = 5;
+                    obj.ctrl.rois.turn1.type = 'func';
+                    obj.ctrl.rois.turn1.use = false;
+
+                    obj.ctrl.rois.turn2.color = [0 0 0];
+                    obj.ctrl.rois.turn2.comment = 'right carousel is turning';
+                    obj.ctrl.rois.turn2.func = 'isDisk2Moving';
+                    obj.ctrl.rois.turn2.prio = 0;
+                    obj.ctrl.rois.turn2.show = true;
+                    obj.ctrl.rois.turn2.sort = 5;
+                    obj.ctrl.rois.turn2.type = 'func';
+                    obj.ctrl.rois.turn2.use = false;
+
+                    obj.ctrl.rois.diskturn1.color = [0.7 0 0];
+                    obj.ctrl.rois.diskturn1.comment = 'fly on left carousel (turning)';
+                    obj.ctrl.rois.diskturn1.inc = {'disk1','turn1'};
+                    obj.ctrl.rois.diskturn1.prio = 50;
+                    obj.ctrl.rois.diskturn1.rule = 'and';
+                    obj.ctrl.rois.diskturn1.show = true;
+                    obj.ctrl.rois.diskturn1.sort = 5;
+                    obj.ctrl.rois.diskturn1.type = 'comb';
+                    obj.ctrl.rois.diskturn1.use = false;
+
+                    obj.ctrl.rois.diskturn2.color = [1 0 0];
+                    obj.ctrl.rois.diskturn2.comment = 'fly on right carousel (turning)';
+                    obj.ctrl.rois.diskturn2.inc = {'disk2','turn2'};
+                    obj.ctrl.rois.diskturn2.prio = 50;
+                    obj.ctrl.rois.diskturn2.rule = 'and';
+                    obj.ctrl.rois.diskturn2.show = true;
+                    obj.ctrl.rois.diskturn2.sort = 5;
+                    obj.ctrl.rois.diskturn2.type = 'comb';
+                    obj.ctrl.rois.diskturn2.use = false;
+
+                    obj.ctrl.rois.diskstop1.color = [0 0 0.7];
+                    obj.ctrl.rois.diskstop1.comment = 'fly on left carousel (stopped)';
+                    obj.ctrl.rois.diskstop1.inc = {'disk1','turn1'};
+                    obj.ctrl.rois.diskstop1.prio = -50;
+                    obj.ctrl.rois.diskstop1.rule = 'not';
+                    obj.ctrl.rois.diskstop1.show = true;
+                    obj.ctrl.rois.diskstop1.sort = 5;
+                    obj.ctrl.rois.diskstop1.type = 'comb';
+                    obj.ctrl.rois.diskstop1.use = false;
+
+                    obj.ctrl.rois.diskstop2.color = [0 0 1];
+                    obj.ctrl.rois.diskstop2.comment = 'fly on right carousel (stopped)';
+                    obj.ctrl.rois.diskstop2.inc = {'disk2','turn2'};
+                    obj.ctrl.rois.diskstop2.prio = -50;
+                    obj.ctrl.rois.diskstop2.rule = 'not';
+                    obj.ctrl.rois.diskstop2.show = true;
+                    obj.ctrl.rois.diskstop2.sort = 5;
+                    obj.ctrl.rois.diskstop2.type = 'comb';
+                    obj.ctrl.rois.diskstop2.use = false;
+
+                    obj.ctrl.rois.anydisk.color = [0 0 0];
+                    obj.ctrl.rois.anydisk.comment = 'fly sitting on any carousel';
+                    obj.ctrl.rois.anydisk.inc = {'disk1','disk2'};
+                    obj.ctrl.rois.anydisk.prio = 100;
+                    obj.ctrl.rois.anydisk.rule = 'or';
+                    obj.ctrl.rois.anydisk.sort = 9;
+                    obj.ctrl.rois.anydisk.type = 'comb';
+                    obj.ctrl.rois.anydisk.use = false;
+
+                    obj.ctrl.rois.anydiskturn.color = [0 0 0];
+                    obj.ctrl.rois.anydiskturn.comment = 'fly sitting on any turning carousel';
+                    obj.ctrl.rois.anydiskturn.inc = {'diskturn1','diskturn2'};
+                    obj.ctrl.rois.anydiskturn.prio = 50;
+                    obj.ctrl.rois.anydiskturn.rule = 'or';
+                    obj.ctrl.rois.anydiskturn.sort = 9;
+                    obj.ctrl.rois.anydiskturn.type = 'comb';
+                    obj.ctrl.rois.anydiskturn.use = false;
+
+                    obj.ctrl.rois.anydiskstop.color = [0 0 0];
+                    obj.ctrl.rois.anydiskstop.comment = 'fly sitting on any turning carousel';
+                    obj.ctrl.rois.anydiskstop.inc = {'diskstop1','diskstop2'};
+                    obj.ctrl.rois.anydiskstop.prio = 50;
+                    obj.ctrl.rois.anydiskstop.rule = 'or';
+                    obj.ctrl.rois.anydiskstop.sort = 9;
+                    obj.ctrl.rois.anydiskstop.type = 'comb';
+                    obj.ctrl.rois.anydiskstop.use = false;
+            end
+        end
+
         function addCustomInfoGroup(obj,fieldname,sourcename,groups)
             % addCustomInfoGroup(obj,fieldname,sourcename,groups) adds
             % fields to the info struct to put experiments into groups

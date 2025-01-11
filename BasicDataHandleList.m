@@ -42,6 +42,12 @@ classdef BasicDataHandleList < matlab.mixin.Copyable
             d = obj.data(indices);
         end
 
+        function setData(obj,v,indices)
+            % setData(obj,v,indices) sets or updates data in the data
+            % struct
+            obj.data(indices) = v;
+        end
+
         function v = getInfo(obj,infofield)
             % v = getInfo(obj,infofield) returns information about the list
             if nargin == 1

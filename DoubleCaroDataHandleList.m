@@ -92,6 +92,7 @@ classdef DoubleCaroDataHandleList < CaroDataHandleList
             obj.updateRoiConf();
         end
 
+        %TODO: remove
         function h = plotDiskTransitionCharts(obj,indices,params)
             % h = plotDiskTransitionCharts(obj,indices,params) plots pie
             % charts for the transitions between left and right carousel
@@ -243,6 +244,158 @@ classdef DoubleCaroDataHandleList < CaroDataHandleList
             end
         end
 
+        function [h,t] = plotDiskTransitionComparison(obj,cdhl,labels)
+            % [h,t] = plotDiskTransitionComparison(obj,cdhl,labels)
+            arguments
+                obj (1,:)
+                cdhl (1,:) DoubleCaroDataHandleList
+                labels (1,2) cell = {'',''}
+            end
+            dt1_dt2_1 = obj.findSpecialTransitions('diskturn1','sortby','diskturn2','nofigure',true);
+            dt2_dt1_1 = obj.findSpecialTransitions('diskturn2','sortby','diskturn1','nofigure',true);
+            dt1_dt2_2 = cdhl.findSpecialTransitions('diskturn1','sortby','diskturn2','nofigure',true);
+            dt2_dt1_2 = cdhl.findSpecialTransitions('diskturn2','sortby','diskturn1','nofigure',true);
+            dt_1 = [dt1_dt2_1.count] + [dt2_dt1_1.count];
+            dt_2 = [dt1_dt2_2.count] + [dt2_dt1_2.count];
+            ds1_ds2_1 = obj.findSpecialTransitions('diskstop1','sortby','diskstop2','nofigure',true);
+            ds2_ds1_1 = obj.findSpecialTransitions('diskstop2','sortby','diskstop1','nofigure',true);
+            ds1_ds2_2 = cdhl.findSpecialTransitions('diskstop1','sortby','diskstop2','nofigure',true);
+            ds2_ds1_2 = cdhl.findSpecialTransitions('diskstop2','sortby','diskstop1','nofigure',true);
+            ds_1 = [ds1_ds2_1.count] + [ds2_ds1_1.count];
+            ds_2 = [ds1_ds2_2.count] + [ds2_ds1_2.count];
+            h = figure;
+            vals = nan(max([numel(dt_1),numel(dt_2),numel(ds_1),numel(ds_2)]),4);
+            vals(1:numel(dt_1),1) = dt_1';
+            vals(1:numel(dt_2),2) = dt_2';
+            vals(1:numel(ds_1),3) = ds_1';
+            vals(1:numel(ds_2),4) = ds_2';
+            boxplot(vals)
+            t = array2table(vals);
+            xticklabels({['on>on_',labels{1}],['on>on_',labels{2}],...
+                ['off>off_',labels{1}],['off>off_',labels{2}]})
+            t.Properties.VariableNames = xticklabels;
+        end
+
+        function findCarouselStays(obj,targets,params)
+            % findCarouselStays(obj,targets,params) extracts events of the
+            % fly moving between the turning carousels
+            arguments
+                obj (1,:)
+                targets (1,:) cell {CaroInterface.mustBeRoiList(targets,obj)} = {'diskturn1','diskturn2'}
+                params.threshold (1,1) double = 0.1
+                params.maxgap (1,1) double = 2
+                params.minstretch (1,1) double = 3
+                params.postproc (1,1) logical = false
+                params.allowonly (1,:) cell {CaroInterface.mustBeRoiList(params.allowonly,obj)} = {'ring1','ring2'}
+                params.mintrans (1,1) double = 3
+                params.plot (1,1) string {mustBeMember(params.plot,{'none','walkingTrace','positions'})} = 'walkingTrace'
+                params.addframes (1,1) double = 100
+            end
+            for o=1:numel(obj)
+                fc = obj(o).fc;
+                lists = obj(o).split;
+                tl = false(numel(lists),numel(targets));
+                for t=1:numel(targets)
+                    tl(:,t) = lists.fractionOnTarget(targets{t}) >= params.threshold;
+                end
+                im_backup = obj(o).conf.indexMode;
+                obj(o).conf.indexMode = 'video';
+                ot = all(tl,2);
+                vids = find(ot);
+                p = find(diff(vids)>params.maxgap);
+                sp = [1; p+1];
+                ep = [p; numel(vids)];
+                idx = find(ep-sp+1 >= params.minstretch);
+                for i=1:numel(idx)
+                    vid_sp = vids(sp(idx(i)));
+                    vid_ep = vids(ep(idx(i)));
+                    fprintf('#:%d %d-%d %s\n',o,vid_sp,vid_ep,cell2mat(obj(o).getInfo('fullName')))
+                    if params.postproc
+                        % exclude transitions coming from the border roi
+                        ap = obj(o).conf.roiprio;
+                        obj(o).conf.roiprio = [17 18 4 6 7 9 2 15 16];
+                        etho = obj(o).createEthogram(vid_sp:vid_ep+1);%get longer stretch
+                        [~,~,ton1,~,~,~] = obj(o).getVisitMetrics('diskturn1',vid_sp:vid_ep+1);
+                        [~,~,ton2,~,~,~] = obj(o).getVisitMetrics('diskturn2',vid_sp:vid_ep+1);
+                        framecount = sum(obj(o).get('frameCount',(vid_sp:vid_ep)));
+                        ton1(ton1>framecount) = [];
+                        ton2(ton2>framecount) = [];
+                        ton1(ton1==1) = [];
+                        ton2(ton2==1) = [];
+                        ac1 = etho(ton1-1);
+                        ac2 = etho(ton2-1);
+                        ac1(ac1==0) = 1;
+                        ac2(ac2==0) = 1;
+                        n1 = obj(o).conf.roilist(ac1)';
+                        n2 = obj(o).conf.roilist(ac2)';
+                        trevt = [];
+                        trevt_nr = 0;
+                        for ii=1:numel(ton1)
+                            trevt_nr = trevt_nr +1;
+                            trevt(trevt_nr).disk = 1;
+                            trevt(trevt_nr).ton = ton1(ii);
+                            trevt(trevt_nr).type = cell2mat(n1(ii));
+                        end
+                        for ii=1:numel(ton2)
+                            trevt_nr = trevt_nr +1;
+                            trevt(trevt_nr).disk = 2;
+                            trevt(trevt_nr).ton = ton2(ii);
+                            trevt(trevt_nr).type = cell2mat(n2(ii));
+                        end
+                        obj(o).conf.roiprio = ap;
+                        [~,sort_idx] = sort([trevt.ton]);
+                        trevt = trevt(sort_idx);
+                        % find stretches of valid transitions
+                        stretch_logical = ismember({trevt.type},params.allowonly);
+                        disp(stretch_logical)
+                        cc = bwconncomp(stretch_logical);
+                        for c=1:numel(cc.PixelIdxList)
+                            n = numel(cc.PixelIdxList{c});
+                            if n >= params.mintrans
+                                ids = cc.PixelIdxList{c};
+
+                                trevt_run = trevt(ids);
+                                global_frame_start = sum(fc(1:vid_sp-1));
+                                for t=1:numel(trevt_run)
+                                    plot_frame = trevt_run(t).ton-trevt_run(1).ton+params.addframes;
+                                    global_frame = global_frame_start + plot_frame - params.addframes;
+                                    fprintf('disk:%d frame:%d(l) %d(f) %d(g) from %s\n',trevt_run(t).disk,trevt_run(t).ton,plot_frame,global_frame,trevt_run(t).type)
+                                end
+
+                                if ~strcmp(params.plot,'none')
+                                    cdhl = obj(o).createSubsetByIndex(vid_sp:vid_ep);
+                                    cdhl.conf.indexMode = 'frame';
+                                    indices = max(1,trevt(ids(1)).ton-params.addframes):min(trevt(ids(end)).ton+params.addframes,cdhl.getDataLength);
+                                    switch params.plot
+                                        case 'walkingTrace'
+                                            cdhl.plotWalkingTrace(indices);
+                                        case 'positions'
+                                            cdhl.plotPositions('indices',indices);
+                                    end
+                                    view(0,30)
+                                    h = gcf;
+                                    gfs = global_frame_start + trevt_run(1).ton - params.addframes;
+                                    gfe = global_frame_start + trevt_run(end).ton + params.addframes;
+                                    h.Name = [h.Name sprintf(' vid:%d-%d frames:%d-%d',vid_sp,vid_ep,gfs,gfe)];
+                                    fprintf('vid:%d:%d frames:%d:%d\n',vid_sp,vid_ep,gfs,gfe)
+                                end
+                            end
+                        end
+                    end
+                    if ~strcmp(params.plot,'none') && ~ params.postproc
+                        switch params.plot
+                            case 'walkingTrace'
+                                obj(o).plotWalkingTrace(vid_sp:vid_ep);
+                            case 'positions'
+                                obj(o).plotPositions('indices',vid_sp:vid_ep);
+                        end
+                        view(0,30)
+                    end
+                end
+                obj(o).conf.indexMode = im_backup;
+            end
+        end
+
         function loadDiskData(obj,offs)
             % loadDiskData(obj,offs) loads information if the left or the
             % right carousel is turning
@@ -287,6 +440,17 @@ classdef DoubleCaroDataHandleList < CaroDataHandleList
                 end
             end
             disp('disk turn information unavailable!')
+        end
+
+        function [v,c] = getAllVisitCounts(obj,targets)
+            % [v,c] = getAllVisitCounts(obj,targets) returns all visit 
+            % counts for the given targets rois as struct and cell array.
+            % The default target rois are updated for the DoubleCarousel.
+            arguments
+                obj (1,:)
+                targets (1,:) cell = {'diskturn1','diskstop1','diskturn2','diskstop2','border','ring1','ring2','food','empty'}
+            end
+            [v,c] = getAllVisitCounts@CaroDataHandleList(obj,targets);
         end
 
     end

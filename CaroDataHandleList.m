@@ -62,6 +62,52 @@ classdef CaroDataHandleList < BasicDataHandleList & CaroInterface
             d = obj.ctrl.maxFrame*(60/obj.ctrl.videoLength)*24;
         end
 
+        function d = distanceMoved(obj,indices)
+            % d = distanceMoved(obj,indices) returns movement distance 
+            % frame to frame
+            arguments
+                obj (1,1)
+                indices {CaroInterface.mustBeValidIndex(indices,obj)} = ':'
+            end
+            x = obj.get('x',indices);
+            y = obj.get('y',indices);
+            d = hypot(x - circshift(x,1), y - circshift(y,1));
+            d(end) = NaN;
+        end
+
+        function d = distanceWalked(obj,indices)
+            % d = distanceWalked(obj,indices) returns the distance the fly 
+            % moved actively. Any movement on a carousel is ignored
+            arguments
+                obj (1,1)
+                indices {CaroInterface.mustBeValidIndex(indices,obj)} = ':'
+            end
+            d = obj.distanceMoved(indices);
+            od = obj.onTarget('disk',indices);
+            d(od) = NaN;
+        end
+
+        function d = totalDistanceMoved(obj,indices)
+            % d = totalDistanceMoved(obj,indices) returns the total
+            % distance moved (active and passive) for each experiment
+            arguments
+                obj (1,:)
+                indices {CaroInterface.mustBeValidIndex(indices,obj)} = ':'
+            end
+            d = arrayfun(@(o)sum(o.distanceMoved(indices),'omitnan'),obj)';
+        end
+
+        function d = totalDistanceWalked(obj,indices)
+            % d = totalDistanceWalked(obj,indices) returns the total
+            % distance walked (ignoring time on carousel) for each 
+            % experiment
+            arguments
+                obj (1,:)
+                indices {CaroInterface.mustBeValidIndex(indices,obj)} = ':'
+            end
+            d = arrayfun(@(o)sum(o.distanceWalked(indices),'omitnan'),obj)';
+        end
+
         function d = createEthogram(obj,indices,params)
             % d = createEthogram(obj,indices,params) creates a pseudo-
             % ethogram and shows for each frame the ROI the fly is in.
@@ -355,40 +401,86 @@ classdef CaroDataHandleList < BasicDataHandleList & CaroInterface
             end
         end
 
-        function h = plotPositions(obj,indices,params)
-            % h = plotPositions(obj,indices,params) plots x/y positions
+        function h = plotPositions(obj,params)
+            % h = plotPositions(obj,params) plots x/y positions
             % with time on the z-axis
             arguments
-                obj (1,1)
-                indices  {CaroInterface.mustBeValidIndex(indices,obj)} = ':'
-                params.plot (1,:) char {mustBeMember(params.plot,{'roi','time'})} = 'roi'
-                params.size (1,1) double = 3
+                obj (1,:)
+                params.indices = ':'
+                params.subIndices = []
+                params.useFrameIndices (1,1) logical = false
+                params.plotType (1,1) string {mustBeMember(params.plotType,["roi","time"])} = "roi"
+                params.addTrace (1,1) logical = false
+                params.markerSize (1,1) double = 3
+                params.overrideRoiPrio (1,:) double = []
+                params.highlightRois (1,:) cell {CaroInterface.mustBeRoiListOrEmpty(params.highlightRois,obj)} = {}
+                params.highlightMarkerSize (1,1) double = 10
             end
-            disp('Creating plot(s)...')
-
             h = gobjects(numel(obj),1);
             for o=1:numel(obj)
                 h(o) = figure;
-                x = obj(o).get('x',indices);
-                y = obj(o).get('y',indices);
-                switch params.plot
+                if params.useFrameIndices
+                    temp_im = obj(o).conf.indexMode;
+                    obj(o).conf.indexMode = 'frame';
+                end
+                x = obj(o).get('x',params.indices);
+                y = obj(o).get('y',params.indices);
+                if ~isempty(params.subIndices)
+                    try
+                        x = x(params.subIndices);
+                        y = y(params.subIndices);
+                    catch
+                        warning('subIndices do not fit, returning all data')
+                    end
+                end
+                switch params.plotType
                     case 'roi'
+                        if ~isempty(params.overrideRoiPrio)
+                            rp = params.overrideRoiPrio;
+                        else
+                            rp = obj(o).conf.roiprio;
+                        end
                         h(o).Name = ['Positions (ROI coded) for ',obj(o).info.name];
-                        fns = obj(o).conf.roilist(obj(o).conf.roiprio);
+                        fns = obj(o).conf.roilist(rp);
                         c = zeros(numel(x),1);
                         for f = 1:numel(fns)
-                            c(obj(o).onTarget(fns{f},indices)) = obj(o).conf.roiprio(f);
+                            c(obj(o).onTarget(fns{f},params.indices)) = rp(f);
                         end
-                        s = params.size;
+                        if ~isempty(params.highlightRois)
+                            s = ones(numel(x),1)*params.markerSize;
+                            for f = 1:numel(params.highlightRois)
+                                s(obj(o).onTarget(params.highlightRois{f},params.indices)) = params.highlightMarkerSize;
+                            end
+                        else
+                            s = params.markerSize;
+                        end
+                        if ~isempty(params.subIndices)
+                            try
+                                c = c(params.subIndices);
+                                if numel(s) > 1
+                                    s = s(params.subIndices);
+                                end
+                            catch
+                                warning('subIndices do not fit, returning all data')
+                            end
+                        end
                         colormap(obj(o).conf.cmapdefault);
                     case 'time'
                         h(o).Name = ['Positions (time coded) for ',obj(o).info.name];
                         c = 1:numel(x);
-                        s = params.size;
+                        s = params.markerSize;
                         colormap(jet(numel(x)));
                 end
+                if params.useFrameIndices
+                    obj(o).conf.indexMode = temp_im;
+                end
                 scatter3(x,y,1:numel(x),s,c,'filled');
-                if strcmp(params.plot,'roi')
+                if params.addTrace
+                    hold on
+                    plot3(x,y,1:numel(x),'-','Color',[0.7 0.7 0.7]);
+                    hold off
+                end
+                if strcmp(params.plotType,'roi')
                     caxis([1 size(obj(o).conf.cmapdefault,1)])
                 end
                 set(gca,'Ydir','reverse');
@@ -521,6 +613,7 @@ classdef CaroDataHandleList < BasicDataHandleList & CaroInterface
                 params.shuffleEvents (1,1) logical = false;
                 params.xLimAt (1,1) double = 24;
                 params.showActivity (1,1) logical = false;
+                params.minActivity (1,1) double = obj(1).conf.minActivity
             end
             h = figure;
             if params.makeAvg
@@ -567,7 +660,7 @@ classdef CaroDataHandleList < BasicDataHandleList & CaroInterface
                     plot(v,'Color',roi.color,'LineWidth',1);
                 end
                 if params.showActivity
-                    v = mean(obj.activitySync,2,'omitnan');
+                    v = mean(obj.activitySync(minActivity=params.minActivity),2,'omitnan');
                     if params.moveMeanWin > 0
                         v = movmean(v,params.moveMeanWin);
                     end
@@ -651,7 +744,6 @@ classdef CaroDataHandleList < BasicDataHandleList & CaroInterface
                 indices {CaroInterface.mustBeValidIndex(indices,obj)} = ':'
                 params.allRois (1,1) logical = false
             end
-            disp('new')
             h = figure;
             if params.allRois && (numel(obj)==1)
                 al = obj.conf.roilist(obj.conf.roicode);
@@ -759,6 +851,388 @@ classdef CaroDataHandleList < BasicDataHandleList & CaroInterface
             legend(fns,'Interpreter','none','Location','best')
         end
 
+        function v = findVisits(obj,target)
+            % v = findVisits(obj,target) returns information about ROI
+            % visits
+            arguments
+                obj (1,1)
+                target (1,:) char {CaroInterface.mustBeRoiName(target,obj)}
+            end
+            l1 = obj.findTransitions(target);
+            l2 = obj.onTarget(target);
+            lon = l1 & l2;
+            loff = l1 & ~l2;
+            ton = find(lon);
+            toff = find(loff);
+            if numel(ton) == 0
+                if numel(toff) == 0
+                    v = [];
+                    return
+                end
+            end
+            if toff(1) < ton(1)
+                ton = [1; ton];
+            end
+            if numel(toff)<numel(ton)
+                toff = [toff; numel(lon)];
+            end
+            indexMode = obj.conf.indexMode;
+            al = obj.conf.roilist;
+            ac_target = find(ismember(al,target));
+            obj.conf.indexMode = 'frame';
+            vs = ton-1;
+            vs(vs<1) = 1;
+            last = obj.createEthogram(vs);
+            next = obj.createEthogram(toff);
+            % handle starts end ends on disk
+            ac_nodata = find(ismember(al,'nodata'));
+            last(last==ac_target) = ac_nodata;
+            next(next==ac_target) = ac_nodata;
+            ac_empty = find(ismember(al,'empty'));
+            last(last==0) = ac_empty;
+            next(next==0) = ac_empty;
+            fullName = obj.getInfo('fullName');
+            for i=numel(ton):-1:1
+                v(i).ton = ton(i);
+                v(i).toff = toff(i);
+                v(i).tdur = toff(i)-ton(i);
+                v(i).come = al{last(i)};
+                v(i).goto = al{next(i)};
+                v(i).exp = fullName;
+            end
+            obj.conf.indexMode = indexMode;
+        end
+
+        function s = findVisitsForTargets(obj,targets)
+            % s = findVisitsForTargets(obj,targets) returns information 
+            % about ROI visits for a list of ROIs
+            arguments
+                obj (1,:)
+                targets (1,:) cell {CaroInterface.mustBeRoiList(targets,obj)}
+            end
+            for o=numel(obj):-1:1
+                for t=1:numel(targets)
+                    s(o).(targets{t}) = obj(o).findVisits(targets{t});
+                end
+            end
+        end
+
+        function [t,c,s,e] = statsForVisits(obj,targets,params)
+            % [t,c,s,e] = statsForVisits(obj,targets,params) returns some
+            % statistics about ROI visits
+            arguments
+                obj (1,:)
+                targets (1,:) cell {CaroInterface.mustBeRoiList(targets,obj)}
+                params.rois = {'disk','ring','food','border','empty','nodata','nan'}
+                params.exportTables (1,1) logical = true
+                params.removeOnes (1,1) logical = false
+            end
+            s = obj.findVisitsForTargets(targets);
+            header = {'relation','before','target','after'};
+            c = cell(numel(targets)*(numel(params.rois)-1),4);
+            i=0;
+            for t=1:numel(targets)
+                v = [s.(targets{t})];
+                for r=1:numel(params.rois)
+                    if t==r
+                        continue
+                    end
+                    i = i+1;
+                    nb = sum(ismember({v.come},params.rois{r}));
+                    nt = numel(v);
+                    na = sum(ismember({v.goto},params.rois{r}));
+                    c(i,:) = {[targets{t} ':' params.rois{r}] nb nt na};
+                end
+            end
+            t = cell2table(c);
+            t.Properties.VariableNames = header;
+            if params.exportTables
+                ec = cell(numel(targets)*(numel(params.rois)-1),5);
+                i = 0;
+                for o=1:numel(s)
+                    fName = obj(o).getInfo('fullName');
+                    for ti=1:numel(targets)
+                        v = s(o).(targets{ti});
+                        if ~isempty(v)
+                            idx = [v.tdur] == 1;
+                            if params.removeOnes
+                                v(idx) = [];
+                            end
+                        end
+                        for r=1:numel(params.rois)
+                            if strcmp(targets{ti},params.rois{r})
+                                continue
+                            end
+                            i = i+1;
+                            if ~isempty(v)
+                                nb = sum(ismember({v.come},params.rois{r}));
+                                nt = numel(v);
+                                na = sum(ismember({v.goto},params.rois{r}));
+                                ec(i,:) = [fName {[targets{ti} ':' params.rois{r}] nb nt na}];
+                            else
+                                ec(i,:) = [fName {[targets{ti} ':' params.rois{r}] 0 0 0}];
+                            end
+                        end
+                    end
+                end
+                e = cell2table(ec);
+                e.Properties.VariableNames = [{'Experiment'} header];
+            end
+            if params.exportTables && params.removeOnes
+                %recreate t
+                q = t{:,1};
+                ct = cell(numel(q),4);
+                for i=1:numel(q)
+                    ct(i,:) = [q(i) num2cell(sum(e{strcmp(q{i},e{:,'relation'}),3:5}))];
+                end
+                t = cell2table(ct);
+                t.Properties.VariableNames = header;
+            end
+        end
+
+        function t = exportVisitMetrics(obj,target,params)
+            % t = exportVisitMetrics(obj,target,params) returns a table 
+            % for ROI transitions
+            arguments
+                obj (1,:)
+                target (1,:) char {CaroInterface.mustBeRoiName(target,obj)}
+                params.indices = ':'
+                params.saveAs (1,1) string = ''
+                params.setEmptyToArena (1,1) logical = true;
+            end
+            t  = cell2table(cell(0,6), 'VariableNames', ...
+                {'Experiment','lastRoi','TimeDiskOn','TimeDiskOff','DiskDuration','DiskInterval'});
+            for o=1:numel(obj)
+                l1 = obj(o).findTransitions(target,params.indices);
+                l2 = obj(o).onTarget(target,params.indices);
+                lon = l1 & l2;
+                loff = l1 & ~l2;
+                ton = find(lon);
+                toff = find(loff);
+    
+                %no transitions
+                if numel(toff) == 0
+                    disp('no transitions')
+                    continue
+                end
+                if toff(1) == 1
+                    toff(1) = [];
+                end
+                if l2(end) == 1
+                    toff(end+1,1) = numel(l2);
+                end
+                if numel(ton) < numel(toff)
+                    ton = [1; ton];
+                end
+    
+                %bridge gaps
+                tint = circshift(ton,-1)-toff;
+                idx = find(tint <= obj(o).conf.roiGapMax);
+                
+                if numel(tint) == 0
+                    continue
+                end
+    
+                idx(end) = [];
+                toff(idx) = [];
+                ton(idx+1) = [];
+    
+                 % remove very short visits
+                tdur = toff-ton;
+                idx = tdur < obj(o).conf.minVisitLength;
+                ton(idx) = [];
+                toff(idx) = [];
+    
+                tdur = toff-ton;
+                tint = circshift(ton,-1)-toff;
+                if ~isempty(tint)
+                    tint(end) = nan;
+                end
+                
+                im_backup = obj(o).conf.indexMode;
+                obj(o).conf.indexMode = 'frame';
+                last_roi = ton-1;
+                last_roi(last_roi==0) = 1;
+                rois = obj(o).createEthogram(last_roi);
+                rois(rois==0) = 1;                
+                rois((ton-1)==0) = find(strcmp(obj(o).conf.roilist,'nodata'));
+                if ~params.setEmptyToArena
+                    rois(rois==1) = find(strcmp(obj(o).conf.roilist,'empty'));
+                end
+                obj(o).conf.indexMode = im_backup;
+                roinames = obj(o).conf.roilist(rois);
+                for i=1:numel(ton)
+                    t = [t;{cell2mat(obj(o).getInfo('fullName')),roinames(i),ton(i),toff(i),tdur(i),tint(i)}];
+                end
+            end
+            if ~strcmp(params.saveAs,'')
+                try
+                    writetable(t,params.saveAs);
+                catch
+                    error('Could not write file')
+                end
+            end
+        end
+
+        function [v,c] = getAllVisitCounts(obj,targets)
+            % [v,c] = getAllVisitCounts(obj,targets) returns all visit 
+            % counts for the given targets rois as struct and cell array
+            arguments
+                obj (1,:)
+                targets (1,:) cell = {'empty','food','border','ring','disk'}
+            end
+            v = [];
+            c = cell((numel(targets)-1)^2,3);
+            ci = 0;
+            for t=1:numel(targets)
+                m = obj.exportVisitMetrics(targets{t},setEmptyToArena=false);
+                for i=1:numel(targets)
+                    if strcmp(targets{i},targets{t})
+                        continue
+                    end
+                    ci = ci+1;
+                    n = sum(ismember(m.lastRoi,targets{i}));
+                    v.(targets{t}).(targets{i}) = n;
+                    c(ci,1) = targets(i);
+                    c(ci,2) = targets(t);
+                    c(ci,3) = {n};
+                end
+            end
+        end
+
+        function t = walkOrNot(obj)
+            % t = walkOrNot(obj) returns a table for walking (over ring) or
+            % jumping (directly from arena) transitions to and from the
+            % carousel
+            arguments
+                obj (1,:)
+            end
+            d = nan(numel(obj),4);
+            for o=1:numel(obj)
+                [~,c] = obj(o).getAllVisitCounts;
+                %ring->disk
+                d(o,1) = c{strcmp(c(:,1),'ring') & strcmp(c(:,2),'disk'),3};
+                %~ring->disk
+                d(o,2) = sum([c{~strcmp(c(:,1),'ring') & strcmp(c(:,2),'disk'),3}]);
+                %disk->ring
+                d(o,3) = c{strcmp(c(:,1),'disk') & strcmp(c(:,2),'ring'),3};
+                %disk->~ring
+                d(o,4) = sum([c{strcmp(c(:,1),'disk') & ~strcmp(c(:,2),'ring'),3}]);
+            end
+            header = {'Name','ring->disk','other->disk','disk->ring','disk->other'};
+            t = array2table(d);
+            t = addvars(t,obj.getInfo('fullName'),'Before',1);
+            t.Properties.VariableNames = header;
+        end
+
+        function [h,v] = plotWalkOrNot(obj)
+            % [h,v] = plotWalkOrNot(obj) plots jumping (directly from 
+            % arena) and walking (via ring ROI) transitions to and from the
+            % carousel
+            arguments
+                obj (1,:)
+            end
+            [~,~,s] = obj.statsForVisits({'disk'});
+            h = figure;
+            v = nan(numel(obj,4));
+            for o=1:numel(obj)
+                if isempty(s(o).disk)
+                    continue
+                end
+                come = ismember({s(o).disk.come},'ring');
+                v(o,1) = sum(come);
+                v(o,2) = sum(~come);
+                goto = ismember({s(o).disk.goto},'ring');
+                v(o,3) = sum(goto);
+                v(o,4) = sum(~goto);
+            end
+            boxplot(v)
+            xticklabels({'ring->disk' 'other->disk' 'disk->ring' 'disk->other'})
+        end
+
+        function [p,G,conns,h] = plotTransitionGraph(obj,conns,params)
+            % [p,G,conns,h] = plotTransitionGraph(obj,conns,params) plots
+            % transitions between rois
+            arguments
+                obj
+                conns cell = {}
+                params.targets (1,:) cell = {'empty','food','border','ring','disk'}
+                params.weight (1,1) double = 10
+                params.ignoreBelow (1,1) double = 1
+                params.markerScale (1,1) double = 200
+                params.normalizeConns (1,1) logical = false
+                params.labelEdges (1,1) logical = false
+            end
+            if isempty(conns)
+                warning('Transitions missing, generating... This will take some time.')
+                [~,conns] = obj.getAllVisitCounts(params.targets);
+            end
+            idx = [conns{:,3}]' < params.ignoreBelow;
+            conns(idx,:) = [];
+            s = conns(:,1);
+            t = conns(:,2);
+            w = [conns{:,3}]';
+            if params.normalizeConns
+                targets = params.targets;
+                for i=1:numel(targets)
+                    idx = strcmp(s,targets{i});
+                    w(idx) = w(idx)/sum(w(idx));
+                end
+            end
+            h = figure;
+            G = digraph(s,t,w);
+            p = plot(G);
+            G.Edges.LWidths = params.weight*G.Edges.Weight/max(G.Edges.Weight);
+            p.LineWidth = G.Edges.LWidths;
+
+            cmapold = obj(1).conf.cmapdefault;
+            al = obj(1).conf.roilist;
+            nodes = G.Nodes.Name;
+            edges = G.Edges.EndNodes(:,1);
+            cdata_nodes = nan(numel(nodes),1);
+            cdata_edges = nan(numel(edges),1);
+            msize = nan(numel(nodes),1);
+            cmapnew = nan(numel(nodes),3);
+            for n=1:numel(nodes)                
+                ac = strcmp(al,nodes(n));
+                cdata_nodes(n) = n;
+                cdata_edges(strcmp(edges,nodes(n))) = n;
+                cmapnew(n,:) = cmapold(ac,:);
+                msize(n) = mean(obj.fractionOnTarget(nodes{n}));
+            end
+            colormap(cmapnew);
+            p.NodeCData = cdata_nodes;
+            p.EdgeCData = cdata_edges;
+            p.MarkerSize = msize*params.markerScale;
+            if params.normalizeConns
+                p.EdgeLabel = string(num2str(G.Edges.Weight,'%.2f'));
+            else
+                p.EdgeLabel = G.Edges.Weight;
+            end
+        end
+
+        function flipNodes(~,G,p,swap)
+            % flipNodes(~,G,p,swap) flips the XY-position of two nodes for
+            % a transition plot
+            arguments
+                ~
+                G (1,1) digraph
+                p (1,1) matlab.graphics.chart.primitive.GraphPlot
+                swap (1,2) cell
+            end
+            nodes = G.Nodes.Name;
+            n1 = strcmp(nodes,swap{1});
+            n2 = strcmp(nodes,swap{2});
+            xd = p.XData;
+            xd(n1) = p.XData(n2);
+            xd(n2) = p.XData(n1);
+            p.XData = xd;
+            yd = p.YData;
+            yd(n1) = p.YData(n2);
+            yd(n2) = p.YData(n1);
+            p.YData = yd;
+        end
+
         function addFixFile(obj)
             % addFixFile(obj) adds fix-files (i.e. a file containing 
             % manually fixed positions for missed detections) to each
@@ -818,6 +1292,63 @@ classdef CaroDataHandleList < BasicDataHandleList & CaroInterface
             end
         end
 
+        function [vw,h] = saveVideo(obj,params)
+            % [vw,h] = saveVideo(obj,params) saves a video showing rois
+            arguments
+                obj (1,1)
+                params.filename (1,1) string = "video.avi"
+                params.video {CaroInterface.mustBeValidIndex(params.video,obj)} = 1
+                params.codec (1,1) string {mustBeMember(params.codec,["Motion JPEG AVI","MPEG-4"])} = 'MPEG-4'
+                params.frames {CaroInterface.mustBeValidFrameIndices(params.frames,obj)} = ':'
+                params.frameRate (1,1) double {mustBePositive} = 30
+                params.showRois (1,1) logical = false
+                params.rois
+                params.trailLength (1,1) double = 10
+                params.trailColor (1,1) char = 'y'
+                params.lineWidth (1,1) double = 2
+                params.showText (1,1) logical = false
+            end
+            filename = fullfile(obj.getInfo('dataPath'),strcat(obj.get('fileID',params.video),'.mp4'));
+            vr = VideoReader(cell2mat(filename));
+            vw = VideoWriter(params.filename,params.codec);
+            open(vw);
+            if islogical(params.frames)
+                params.frames = find(params.frames);
+            end
+            if params.frames == ':'
+                params.frames = 1:obj.get('frameCount',params.video);
+            end
+            i = 0;
+            x = obj.get('x',params.video);
+            y = obj.get('y',params.video);
+            h = figure;
+            axis square
+            while hasFrame(vr)
+                i=i+1;
+                frm = vr.readFrame;
+                if i > max(params.frames)
+                    disp('done')
+                    break
+                end
+                if ismember(i,params.frames)
+                    imshow(frm)
+                    hold on
+                    idx = max(1,i-params.trailLength):i;
+                    plot(x(idx),y(idx),params.trailColor);
+                    if params.showRois
+                        obj.addRoisToFrame("video",params.video,"frame",i,"rois",params.rois,"lineWidth",params.lineWidth)
+                    end
+                    if params.showText
+                        text(590,30,'5x speed','Color','w','FontSize',30)
+                    end
+                    frame = getframe(gca);
+                    vw.writeVideo(frame);
+                    hold off
+                end
+            end
+            close(vw);
+        end
+
     end
 
     methods %override
@@ -870,11 +1401,12 @@ classdef CaroDataHandleList < BasicDataHandleList & CaroInterface
             d = max(arrayfun(@(x) numel(unique(string(x.get('dateTime'),'MM_dd'))),obj));
         end
 
-        function d = activitySync(obj,indices)
-            % d = activitySync(obj,indices) lines up activity 
+        function d = activitySync(obj,indices,params)
+            % d = activitySync(obj,indices,params) lines up activity 
             arguments
                 obj (1,:)
                 indices {CaroInterface.mustBeValidIndex(indices,obj)} = ':'
+                params.minActivity (1,1) double = obj(1).conf.minActivity
             end
             maxDays = obj.maxDays;
             mdp = obj(1).MaxDataPoints;
@@ -882,7 +1414,7 @@ classdef CaroDataHandleList < BasicDataHandleList & CaroInterface
             for o=1:numel(obj)
                 offs = obj(o).Offset;
                 vals = nan(maxDays*mdp,1);
-                act = obj(o).isActive(indices);
+                act = obj(o).isActive(indices,minActivity=params.minActivity);
                 vals(offs+1:offs+numel(act)) = act;
                 d(:,o) = vals;
             end
@@ -958,6 +1490,31 @@ classdef CaroDataHandleList < BasicDataHandleList & CaroInterface
             legend(al(ac),'Location',opts.Location);
         end
 
+        function addRoisToFrame(obj,params)
+            % addRoisToFrame(obj,params) draws rois for saveVideo
+            arguments
+                obj(1,1)
+                params.video (1,1) double
+                params.frame (1,1) double
+                params.rois
+                params.lineWidth (1,1) double = 2
+            end
+            ang=0:0.01:2*pi;
+            for t=1:numel(params.rois)
+                switch params.rois{t}
+                    case "border"
+                        r = obj.ctrl.rois.(params.rois{t}).rmin;
+                    otherwise
+                        r = obj.ctrl.rois.(params.rois{t}).rmax;
+                end
+                cx = obj.ctrl.rois.(params.rois{t}).x;
+                cy = obj.ctrl.rois.(params.rois{t}).y;
+                xp = r*cos(ang);
+                yp = r*sin(ang);
+                c = obj.conf.cmapdefault(ismember(obj.conf.roilist,params.rois{t}),:);
+                plot(cx+xp,cy+yp,'Color',c,'LineWidth',params.lineWidth);
+            end
+        end
 
     end
 

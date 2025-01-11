@@ -574,7 +574,7 @@ classdef CaroInterface < handle
             [~,idx] = sort(as);
             obj.conf.roicode = ac(idx);
             [~,idx] = sort(ap);
-            obj.conf.areaprio = ac(idx);
+            obj.conf.roiprio = ac(idx);
         end
 
         function r = addRoi(obj,name,params)
@@ -675,9 +675,18 @@ classdef CaroInterface < handle
 
         function mustBeRoiList(targets,obj)
             % Validate that 'targets' only contains valid ROI names.
-            if ~all(cellfun(@(z) all(arrayfun(@(o) ismember(targets,o.conf.roilist),z)),obj))
+            if ~(all(ismember(targets,obj(1).conf.roilist)))
                 eid = "mustBeRoiList:invalidRoiName";
                 msg = "'targets' must only contain valid ROI names.";
+                throwAsCaller(MException(eid,msg))
+            end
+        end
+
+        function mustBeRoiListOrEmpty(targets,obj)
+            % Validate that 'targets' only contains valid ROI names or be empty.
+            if ~(all(ismember(targets,obj(1).conf.roilist)) || isempty(targets))
+                eid = 'mustBeRoiListOrEmpty:invalidRoiName';
+                msg = 'targets must only contain valid ROI names or be empty.';
                 throwAsCaller(MException(eid,msg))
             end
         end

@@ -34,11 +34,10 @@ Default settings can be provided in `defaultSettings.json`:\
 
 **Please cite as**:
 
-    @article{Triphan_Huetteroth.2023,
-        author = {Triphan, Tilman and Huetteroth, Wolf},
-        title = {Voluntary passive movement in flies is play-like behavior},
-        year = {2023},
-        doi = {10.1101/2023.08.03.551880},
-        URL = {https://www.biorxiv.org/content/10.1101/2023.08.03.551880v2},
-        journal = {bioRxiv}
-    }	
+    @article{Triphan_Ferreira_Huetteroth.2025,
+	    author = {Triphan, Tilman and Ferreira, Clara H. and Huetteroth, Wolf},
+	    title = {Play-like behavior exhibited by the vinegar fly Drosophila melanogaster},
+	    year = {2025},
+	    doi = {https://doi.org/10.1016/j.cub.2025.01.025},
+	    journal = {Current Biology}
+    }

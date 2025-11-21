@@ -29,7 +29,7 @@ Default settings can be provided in `defaultSettings.json`:\
 `borderBuffer`: outer part of the border zone, unreachable for the fly due to the shape of the glass lid\
 `minActivity`: minimum of movement (pixel) for the fly to be considered active\
 `maxMoveDist`: maximum of expected fly movement\
-`minVisitLength`: minimum vistit length (in frames) on ROI to be included in analysis (cutoff)\
+`minVisitLength`: minimum visit length (in frames) on ROI to be included in analysis (cutoff)\
 `roiGapMax`: maximum gap between two stays on the same ROI to be ignored, the two stays will be merged\
 
 **Please cite as**:
